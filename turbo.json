@@ -1,0 +1,33 @@
+{
+    "$schema": "https://turbo.build/schema.json",
+    "tasks": {
+        "@du/utils#build": {
+            "dependsOn": [
+                "@du/typings#build"
+            ]
+        },
+        "@du/pc-ui#build": {
+            "dependsOn": [
+                "@du/utils#build",
+                "@du/typings#build"
+            ]
+        },
+        "build": {
+            "dependsOn": [
+                "^build"
+            ],
+            "outputs": [
+                "dist/**",
+                "lib/**"
+            ]
+        },
+        "dev": {
+            "cache": false,
+            "persistent": true
+        },
+        "lint": {},
+        "clean": {
+            "cache": false
+        }
+    }
+}

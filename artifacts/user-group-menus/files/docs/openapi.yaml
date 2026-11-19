@@ -1,0 +1,1329 @@
+openapi: 3.1.0
+info:
+  title: Crew Platform Authentication API
+  version: 1.0.0
+  description: funauth-app 注册、登录、刷新、退出和当前用户接口。
+servers:
+  - url: http://localhost:8080
+    description: 本地开发环境
+tags:
+  - name: Authentication
+    description: 登录认证
+  - name: System Menus
+    description: 系统菜单管理
+  - name: User Groups
+    description: 用户组管理（不分页）
+paths:
+  /api/system/user-groups/{id}/menus/tree:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer, minimum: 1 }
+    get:
+      tags: [User Groups]
+      summary: 查询用户组菜单权限树及已绑定 ID
+      description: 需要 system:group:read 权限；返回完整树，包含未绑定及隐藏菜单，不分页。
+      operationId: getUserGroupMenuTree
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [groupId, rows, checkedKeys]
+                    properties:
+                      groupId: { type: integer, minimum: 1 }
+                      rows:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Menu'
+                      checkedKeys:
+                        type: array
+                        items: { type: string, format: uuid }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/system/user-groups/{id}/menus:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: integer, minimum: 1 }
+    put:
+      tags: [User Groups]
+      summary: 全量保存用户组菜单绑定
+      description: 需要 system:group:write 权限。空数组清空；去重并规范为小写；父子节点独立绑定。任一菜单不存在则全部回滚。
+      operationId: saveUserGroupMenus
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [menuIds]
+              properties:
+                menuIds:
+                  type: array
+                  maxItems: 500
+                  items: { type: string, format: uuid }
+      responses:
+        '200':
+          description: 保存成功（仅维护绑定配置，未调整运行时鉴权）
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success: { const: true }
+                  data:
+                    type: object
+                    required: [groupId, menuIds, updated]
+                    properties:
+                      groupId: { type: integer, minimum: 1 }
+                      menuIds:
+                        type: array
+                        items: { type: string, format: uuid }
+                      updated: { const: true }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/system/users/query:
+    post:
+      tags: [User Groups]
+      summary: 分页查询所有用户（包含停用账号）
+      description: 需要 system:role:read 权限。按用户 ID 倒序，返回当前页用户及角色。
+      operationId: queryUsers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryUsersRequest'
+      responses:
+        '200':
+          description: 查询成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsersPageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/system/user-groups/{id}/users:
+    post:
+      tags: [User Groups]
+      summary: 给用户组批量添加用户
+      description: 需要 system:group:write 权限。重复 ID 去重，跳过已绑定用户；任一用户不存在则整批失败。
+      operationId: addUserGroupUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userIds]
+              properties:
+                userIds:
+                  type: array
+                  minItems: 1
+                  maxItems: 500
+                  items:
+                    type: integer
+                    minimum: 1
+            example: { userIds: [41, 42, 43] }
+      responses:
+        '200':
+          description: 添加成功（全部已绑定时也返回成功）
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AddUserGroupUsersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 用户组或任一用户不存在，整批不新增绑定
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: 注册游客账号
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              username: visitor01
+              email: visitor01@example.com
+              password: Visitor123!
+              displayName: 访客一号
+      responses:
+        '201':
+          description: 注册并登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: 用户名或邮箱已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: 用户登录
+      description: identifier 可以是用户名或邮箱。成功后返回短期 access token 和可轮换 refresh token。
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              identifier: admin
+              password: Admin123456!
+      responses:
+        '200':
+          description: 登录成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: 请求过于频繁
+  /api/auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: 刷新登录状态
+      description: 刷新成功后旧 refresh token 立即失效，必须保存响应中的新 token。
+      operationId: refreshSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: 刷新成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: 退出登录
+      operationId: logout
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshTokenRequest'
+      responses:
+        '200':
+          description: 退出成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    required: [loggedOut]
+                    properties:
+                      loggedOut:
+                        type: boolean
+                        const: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /api/auth/me:
+    get:
+      tags: [Authentication]
+      summary: 获取当前用户
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 当前用户及实时角色权限
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    $ref: '#/components/schemas/AuthUser'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/system/menus:
+    post:
+      tags: [System Menus]
+      summary: 表格分页查询菜单树
+      operationId: queryMenus
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryMenuInput'
+      responses:
+        '200':
+          description: 分页菜单树，分页单位为根菜单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/system/menus/create:
+    post:
+      tags: [System Menus]
+      summary: 新增菜单
+      operationId: createMenu
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMenuInput'
+      responses:
+        '201':
+          description: 创建成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/system/menus/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [System Menus]
+      summary: 查询单个菜单及其后代
+      operationId: getMenu
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 菜单树节点
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [System Menus]
+      summary: 修改菜单
+      operationId: updateMenu
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMenuInput'
+      responses:
+        '200':
+          description: 修改后的菜单
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+    delete:
+      tags: [System Menus]
+      summary: 删除菜单
+      operationId: deleteMenu
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 删除成功
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success, data]
+                properties:
+                  success:
+                    type: boolean
+                    const: true
+                  data:
+                    type: object
+                    required: [id, deleted]
+                    properties:
+                      id:
+                        type: string
+                        format: uuid
+                      deleted:
+                        type: boolean
+                        const: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/system/user-groups:
+    get:
+      tags: [User Groups]
+      summary: 查询全部用户组，不分页
+      description: 需要 system:group:read 权限，admin 角色始终放行。
+      operationId: listUserGroups
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGroupListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/system/user-groups/create:
+    post:
+      tags: [User Groups]
+      summary: 新增用户组
+      description: 需要 system:group:write 权限，admin 角色始终放行。
+      operationId: createUserGroup
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUserGroupRequest'
+      responses:
+        '201':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          description: 用户组编码已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /api/system/user-groups/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    get:
+      tags: [User Groups]
+      summary: 查询用户组详情
+      description: 需要 system:group:read 权限，admin 角色始终放行。
+      operationId: getUserGroup
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [User Groups]
+      summary: 局部修改用户组
+      description: 需要 system:group:write 权限，admin 角色始终放行。
+      operationId: updateUserGroup
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserGroupRequest'
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: 用户组编码已存在
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      tags: [User Groups]
+      summary: 删除用户组
+      description: 需要 system:group:write 权限，admin 角色始终放行。
+      operationId: deleteUserGroup
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: 操作成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteUserGroupResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/system/user-groups/users/query:
+    post:
+      tags: [User Groups]
+      summary: 分页查询用户组绑定的用户
+      description: 需要 system:group:read 权限。包含已停用的绑定用户，按用户 ID 倒序。
+      operationId: queryUserGroupUsers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QueryUserGroupUsersRequest'
+            example: { params: { id: 1 }, pageIndex: 1, pageSize: 20 }
+      responses:
+        '200':
+          description: 查询成功，无绑定用户或超出页码时 rows 为空数组
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserGroupUsersResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/system/user-groups/{id}/users/{userId}:
+    delete:
+      tags: [User Groups]
+      summary: 解除用户组与用户的绑定
+      description: 需要 system:group:write 权限。仅删除关联，保留用户账号、角色及其他用户组绑定。
+      operationId: unbindUserGroupUser
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - in: path
+          name: userId
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: 解除绑定成功
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UnbindUserGroupUserResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          description: 用户组不存在，或用户未绑定到该组
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    AddUserGroupUsersResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: object
+          required: [groupId, userIds, addedCount, existingCount]
+          properties:
+            groupId:
+              type: integer
+              minimum: 1
+            userIds:
+              type: array
+              description: 去重后升序排列的用户 ID
+              items:
+                type: integer
+                minimum: 1
+            addedCount:
+              type: integer
+              minimum: 0
+            existingCount:
+              type: integer
+              minimum: 0
+    SystemUser:
+      type: object
+      required: [id, username, email, displayName, status, lastLoginAt, createdAt, roles]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+        lastLoginAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        roles:
+          type: array
+          items:
+            type: object
+            required: [id, code, name]
+            properties:
+              id:
+                type: integer
+                minimum: 1
+              code:
+                type: string
+              name:
+                type: string
+    UsersPageResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: object
+          required: [rows, total, pageIndex, pageSize]
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: '#/components/schemas/SystemUser'
+            total:
+              type: integer
+              minimum: 0
+            pageIndex:
+              type: integer
+              minimum: 1
+            pageSize:
+              type: integer
+              minimum: 1
+              maximum: 100
+    QueryUserGroupUsersRequest:
+      allOf:
+        - $ref: '#/components/schemas/QueryUsersRequest'
+        - type: object
+          required: [params]
+          properties:
+            params:
+              type: object
+              required: [id]
+              properties:
+                id:
+                  description: 用户组 ID，支持正整数或正整数字符串
+                  oneOf:
+                    - type: integer
+                      minimum: 1
+                    - type: string
+                      pattern: '^[1-9][0-9]*$'
+    QueryUsersRequest:
+      type: object
+      properties:
+        pageIndex:
+          type: integer
+          minimum: 1
+          default: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+    BoundUser:
+      type: object
+      required: [id, username, email, displayName, status, lastLoginAt, createdAt, boundAt]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+          description: 用户 ID
+        username:
+          type: string
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+        status:
+          type: string
+          enum: [active, disabled]
+        lastLoginAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+          description: 账号创建时间
+        boundAt:
+          type: string
+          format: date-time
+          description: 用户组绑定时间
+    UserGroupUsersResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: object
+          required: [rows, total, pageIndex, pageSize]
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: '#/components/schemas/BoundUser'
+            total:
+              type: integer
+              minimum: 0
+            pageIndex:
+              type: integer
+              minimum: 1
+            pageSize:
+              type: integer
+              minimum: 1
+              maximum: 100
+    UnbindUserGroupUserResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: object
+          required: [groupId, userId, deleted]
+          properties:
+            groupId:
+              type: integer
+              minimum: 1
+            userId:
+              type: integer
+              minimum: 1
+            deleted:
+              type: boolean
+              const: true
+    UpdateUserGroupRequest:
+      type: object
+      minProperties: 1
+      properties:
+        code:
+          type: string
+          minLength: 1
+          maxLength: 50
+          pattern: '^[a-zA-Z][a-zA-Z0-9_-]*$'
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        description:
+          type: [string, 'null']
+          maxLength: 255
+        status:
+          type: string
+          enum: [enabled, disabled]
+    CreateUserGroupRequest:
+      allOf:
+        - $ref: '#/components/schemas/UpdateUserGroupRequest'
+        - type: object
+          required: [code, name]
+          properties:
+            status:
+              default: enabled
+    UserGroup:
+      allOf:
+        - $ref: '#/components/schemas/UpdateUserGroupRequest'
+        - type: object
+          required: [id, code, name, description, status, createdAt, updatedAt]
+          properties:
+            id:
+              type: integer
+              minimum: 1
+            createdAt:
+              type: string
+              format: date-time
+            updatedAt:
+              type: string
+              format: date-time
+    UserGroupResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/UserGroup'
+    UserGroupListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserGroup'
+    DeleteUserGroupResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: object
+          required: [id, deleted]
+          properties:
+            id:
+              type: integer
+              minimum: 1
+            deleted:
+              type: boolean
+              const: true
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [username, email, password, displayName]
+      properties:
+        username:
+          type: string
+          minLength: 3
+          maxLength: 50
+          pattern: '^[a-zA-Z0-9_-]+$'
+        email:
+          type: string
+          format: email
+          maxLength: 120
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+        displayName:
+          type: string
+          minLength: 1
+          maxLength: 80
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [identifier, password]
+      properties:
+        identifier:
+          type: string
+          minLength: 1
+          maxLength: 120
+          description: 用户名或邮箱
+        password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 72
+    RefreshTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [refreshToken]
+      properties:
+        refreshToken:
+          type: string
+          minLength: 32
+          maxLength: 500
+    AuthUser:
+      type: object
+      required: [id, username, displayName, roles, permissions]
+      properties:
+        id:
+          type: integer
+          minimum: 1
+        username:
+          type: string
+        displayName:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+            enum: [admin, captain, crew, guest]
+        permissions:
+          type: array
+          items:
+            type: string
+    Menu:
+      type: object
+      required: [id, parentId, name, path, appCode, menuType, menuType_name, component, icon, permissionCode, sortOrder, visible, children]
+      properties:
+        id:
+          type: string
+          format: uuid
+        parentId:
+          type: [string, 'null']
+          format: uuid
+        name:
+          type: string
+        path:
+          type: string
+        appCode:
+          type: string
+        menuType:
+          type: string
+        menuType_name:
+          type: [string, 'null']
+        component:
+          type: [string, 'null']
+        icon:
+          type: [string, 'null']
+        permissionCode:
+          type: [string, 'null']
+        sortOrder:
+          type: integer
+        visible:
+          type: boolean
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/Menu'
+    MenuQuerySettingItem:
+      type: object
+      additionalProperties: false
+      required: [name, builder]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        value:
+          oneOf:
+            - type: string
+              maxLength: 5000
+            - type: number
+            - type: boolean
+            - type: 'null'
+            - type: array
+              maxItems: 100
+              items:
+                oneOf:
+                  - type: string
+                    maxLength: 5000
+                  - type: number
+                  - type: boolean
+        value_display:
+          type: string
+          maxLength: 5000
+        caption:
+          type: string
+          maxLength: 100
+        linkOpt:
+          type: string
+          enum: [and, or]
+          default: and
+        builder:
+          type: string
+          enum: [include, m_value_equal, equal]
+        builder_display:
+          type: string
+          maxLength: 100
+    QueryMenuInput:
+      type: object
+      additionalProperties: false
+      properties:
+        pageIndex:
+          type: integer
+          minimum: 1
+          default: 1
+        pageSize:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        params:
+          type: object
+          additionalProperties: true
+        querySetting:
+          type: array
+          maxItems: 100
+          default: []
+          items:
+            oneOf:
+              - $ref: '#/components/schemas/MenuQuerySettingItem'
+              - type: array
+                minItems: 1
+                maxItems: 100
+                items:
+                  $ref: '#/components/schemas/MenuQuerySettingItem'
+    MenuListResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          type: object
+          required: [rows, total, pageIndex, pageSize]
+          properties:
+            rows:
+              type: array
+              items:
+                $ref: '#/components/schemas/Menu'
+            total:
+              type: integer
+              minimum: 0
+            pageIndex:
+              type: integer
+              minimum: 1
+            pageSize:
+              type: integer
+              minimum: 1
+    CreateMenuInput:
+      type: object
+      additionalProperties: false
+      required: [name, path, appCode]
+      properties:
+        parentId:
+          type: [string, 'null']
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        path:
+          type: string
+          maxLength: 255
+          pattern: '^/'
+        appCode:
+          type: string
+          minLength: 1
+          maxLength: 50
+        menuType:
+          type: string
+          minLength: 1
+          maxLength: 50
+          default: menu
+        component:
+          type: [string, 'null']
+          maxLength: 255
+        icon:
+          type: [string, 'null']
+          maxLength: 80
+        permissionCode:
+          type: [string, 'null']
+          maxLength: 100
+        sortOrder:
+          type: integer
+          default: 0
+        visible:
+          type: boolean
+          default: true
+    UpdateMenuInput:
+      type: object
+      additionalProperties: false
+      properties:
+        parentId:
+          type: [string, 'null']
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        path:
+          type: string
+          maxLength: 255
+          pattern: '^/'
+        appCode:
+          type: string
+          minLength: 1
+          maxLength: 50
+        menuType:
+          type: string
+          minLength: 1
+          maxLength: 50
+        component:
+          type: [string, 'null']
+          maxLength: 255
+        icon:
+          type: [string, 'null']
+          maxLength: 80
+        permissionCode:
+          type: [string, 'null']
+          maxLength: 100
+        sortOrder:
+          type: integer
+        visible:
+          type: boolean
+    MenuResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/Menu'
+    Session:
+      type: object
+      required: [accessToken, refreshToken, expiresIn, user, menus]
+      properties:
+        accessToken:
+          type: string
+          description: API Bearer JWT，默认 15 分钟过期
+        refreshToken:
+          type: string
+          description: 仅用于刷新和退出，默认 7 天过期
+        expiresIn:
+          type: string
+          example: 15m
+        user:
+          $ref: '#/components/schemas/AuthUser'
+        menus:
+          type: array
+          description: 当前用户可见的树形菜单
+          items:
+            $ref: '#/components/schemas/Menu'
+    SessionResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          const: true
+        data:
+          $ref: '#/components/schemas/Session'
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: UNAUTHORIZED
+        message:
+          type: string
+          example: 用户名、邮箱或密码不正确
+        details:
+          description: 参数校验错误详情
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          const: false
+        error:
+          $ref: '#/components/schemas/Error'
+  responses:
+    BadRequest:
+      description: 请求参数不正确
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: BAD_REQUEST
+              message: 请求参数不正确
+    Unauthorized:
+      description: 登录失败、账号停用或令牌无效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            success: false
+            error:
+              code: UNAUTHORIZED
+              message: 用户名、邮箱或密码不正确
+    Forbidden:
+      description: 当前用户没有接口所需权限
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: 菜单或父菜单不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Conflict:
+      description: 菜单路径已经存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'

@@ -1,0 +1,119 @@
+:root {
+    color-scheme: light;
+    // space
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 40px;
+
+    // primary
+    --color-primary: #333fff;
+    --bg-color: #f5f7fa;
+
+    // radius
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+
+    // text color tokens
+    --text-color-important: #000000;
+    --text-color-secondary: #505266;
+    --text-color-helper: #737585;
+    --text-color-placeholder: #9697A3;
+    --text-color-disabled: #B9BAC2;
+    // // Brand and semantic colors
+    // --app-color-primary: #333fff;
+    // --app-color-success: #16a34a;
+    // --app-color-warning: #d97706;
+    // --app-color-danger: #dc2626;
+    // --app-color-info: #64748b;
+    // --app-bg-color: #f5f7fa;
+    // --app-bg-surface: #ffffff;
+    // --app-bg-elevated: #ffffff;
+    // --app-fill-color: #f2f4f7;
+    // --app-fill-hover: #e9edf2;
+    // --app-text-color: #1f2329;
+    // --app-text-primary: var(--app-text-color);
+    // --app-text-secondary: #646a73;
+    // --app-text-placeholder: #8f959e;
+    // --app-text-disabled: #bbbfc4;
+    // --app-border-color: #dfe3e8;
+    // --app-border-color-light: #ebeef2;
+    // --app-divider-color: #ebeef2;
+    // --app-focus-ring: rgb(51 63 255 / 28%);
+
+    // // Typography
+    // --app-font-family:
+    //     -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei",
+    //     "PingFang SC", Arial, sans-serif;
+    // --app-font-family-mono:
+    //     "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+    // --app-font-size-xs: 12px;
+    // --app-font-size-sm: 13px;
+    // --app-font-size-md: 14px;
+    // --app-font-size-lg: 16px;
+    // --app-font-size-xl: 20px;
+    // --app-line-height-tight: 1.25;
+    // --app-line-height-base: 1.5;
+    // --app-line-height-loose: 1.75;
+
+    // // Spacing
+    // --app-space-0: 0;
+    // --app-space-1: 4px;
+    // --app-space-2: 8px;
+    // --app-space-3: 12px;
+    // --app-space-4: 16px;
+    // --app-space-5: 20px;
+    // --app-space-6: 24px;
+    // --app-space-8: 32px;
+    // --app-space-10: 40px;
+    // --app-space-12: 48px;
+
+    // // Shape, elevation and motion
+    // --app-radius-sm: 4px;
+    // --app-radius-md: 6px;
+    // --app-radius-lg: 8px;
+    // --app-radius-round: 999px;
+    // --app-shadow-sm: 0 1px 2px rgb(15 23 42 / 8%);
+    // --app-shadow-md: 0 6px 18px rgb(15 23 42 / 12%);
+    // --app-shadow-lg: 0 14px 36px rgb(15 23 42 / 16%);
+    // --app-duration-fast: 120ms;
+    // --app-duration-base: 200ms;
+    // --app-ease: cubic-bezier(0.2, 0, 0, 1);
+
+    // // Shared component dimensions
+    // --app-control-height-sm: 24px;
+    // --app-control-height-md: 32px;
+    // --app-control-height-lg: 40px;
+    // --app-header-height: 56px;
+    // --app-sidebar-width: 240px;
+    // --app-z-dropdown: 1000;
+    // --app-z-sticky: 1020;
+    // --app-z-modal: 2000;
+
+    // // Compatibility aliases used by existing pc-ui components.
+    // --color-primary: var(--app-color-primary);
+    // --space-xs: var(--app-space-1);
+    // --space-sm: var(--app-space-2);
+    // --space-md: var(--app-space-4);
+    // --space-lg: var(--app-space-6);
+    // --space-3: var(--app-space-3);
+    // --radius-sm: var(--app-radius-sm);
+    // --radius-md: var(--app-radius-md);
+    // --title-size: var(--app-font-size-xl);
+    // --extra-size: var(--app-font-size-sm);
+}
+
+html.dark,
+[data-theme="dark"] {
+    color-scheme: dark;
+
+    --text-color-important: #f2f2f5;
+    --text-color-secondary: #cdced6;
+    --text-color-helper: #a9abb8;
+    --text-color-placeholder: #8c8e9e;
+    --text-color-disabled: #565866;
+}

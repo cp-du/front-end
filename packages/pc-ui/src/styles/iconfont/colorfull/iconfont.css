@@ -1,0 +1,181 @@
+@font-face {
+  font-family: "iconfont"; /* Project id 4896419 */
+  /* Color fonts */
+  src: 
+       url('iconfont.woff2?t=1792635568560') format('woff2'),
+       url('iconfont.woff?t=1792635568560') format('woff'),
+       url('iconfont.ttf?t=1792635568560') format('truetype');
+}
+
+.iconfont {
+  font-family: "iconfont" !important;
+  font-size: 16px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon-home_vpn_connect:before {
+  content: "\e7f5";
+}
+
+.icon-home_vpn_open:before {
+  content: "\e7f6";
+}
+
+.icon-home_vpn_error:before {
+  content: "\e7f7";
+}
+
+.icon-home_vpn_close:before {
+  content: "\e7f4";
+}
+
+.icon-tabbar-more:before {
+  content: "\e7f3";
+}
+
+.icon-b-folder-color-dark:before {
+  content: "\f7e7";
+}
+
+.icon-b-image-color-dark:before {
+  content: "\f7e8";
+}
+
+.icon-b-link-color-dark:before {
+  content: "\f7e9";
+}
+
+.icon-b-pdf-color-light:before {
+  content: "\f7ca";
+}
+
+.icon-b-html-color-dark:before {
+  content: "\f7ea";
+}
+
+.icon-b-txt-color-light:before {
+  content: "\f7eb";
+}
+
+.icon-b-video-color-light:before {
+  content: "\f7ec";
+}
+
+.icon-b-folder-color-light:before {
+  content: "\f7ed";
+}
+
+.icon-b-ppt-color-dark:before {
+  content: "\f7cc";
+}
+
+.icon-b-music-color-dark:before {
+  content: "\f7c0";
+}
+
+.icon-b-excel-color-dark:before {
+  content: "\f7d8";
+}
+
+.icon-b-music-color-light:before {
+  content: "\f7d9";
+}
+
+.icon-b-link-color-light:before {
+  content: "\f7da";
+}
+
+.icon-b-excel-color-light:before {
+  content: "\f7db";
+}
+
+.icon-b-unkownfile-color-dark:before {
+  content: "\f7dc";
+}
+
+.icon-b-word-color-dark:before {
+  content: "\f7dd";
+}
+
+.icon-b-zip-color-dark:before {
+  content: "\f7de";
+}
+
+.icon-b-word-color-light:before {
+  content: "\f7df";
+}
+
+.icon-b-txt-color-dark:before {
+  content: "\f7e0";
+}
+
+.icon-b-image-color-light:before {
+  content: "\f7e1";
+}
+
+.icon-b-unkownfile-color-light:before {
+  content: "\f7e2";
+}
+
+.icon-b-ppt-color-light:before {
+  content: "\f7cb";
+}
+
+.icon-b-pdf-color-dark:before {
+  content: "\f7e3";
+}
+
+.icon-b-html-color-light:before {
+  content: "\f7e4";
+}
+
+.icon-b-zip-color-light:before {
+  content: "\f7e5";
+}
+
+.icon-b-video-color-dark:before {
+  content: "\f7e6";
+}
+
+.icon-a-checkbox-circle-dark:before {
+  content: "\f7ce";
+}
+
+.icon-a-checkbox-circle-light:before {
+  content: "\f7cf";
+}
+
+.icon-a-close-circle-dark:before {
+  content: "\f7d0";
+}
+
+.icon-a-arrow-right-circle-dark:before {
+  content: "\f7d1";
+}
+
+.icon-a-information-dark:before {
+  content: "\f7d2";
+}
+
+.icon-a-close-circle-light:before {
+  content: "\f7d3";
+}
+
+.icon-a-arrow-right-circle-light:before {
+  content: "\f7d4";
+}
+
+.icon-a-error-warning-dark:before {
+  content: "\f7d5";
+}
+
+.icon-a-error-warning-light:before {
+  content: "\f7d6";
+}
+
+.icon-a-information-light:before {
+  content: "\f7d7";
+}
+

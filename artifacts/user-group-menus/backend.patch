@@ -1,0 +1,477 @@
+diff --git a/src/apps/system-app/user-group-menu-service.ts b/src/apps/system-app/user-group-menu-service.ts
+new file mode 100644
+--- /dev/null
++++ b/src/apps/system-app/user-group-menu-service.ts
+@@ -0,0 +1,47 @@
++import type { RowDataPacket } from 'mysql2';
++import { execute, rows, transaction } from '../../db/pool.js';
++import { notFound } from '../../shared/http/errors.js';
++import { listMenus } from './menu-service.js';
++import { getUserGroup } from './user-group-service.js';
++
++export async function getUserGroupMenuTree(groupId: number) {
++  await getUserGroup(groupId);
++  const [tree, bindings] = await Promise.all([
++    listMenus(),
++    rows<(RowDataPacket & { menuId: string })[]>(
++      'SELECT menu_id AS menuId FROM user_group_menus WHERE group_id = ? ORDER BY menu_id',
++      [groupId]
++    )
++  ]);
++  return { groupId, rows: tree, checkedKeys: bindings.map(({ menuId }) => menuId) };
++}
++
++export async function saveUserGroupMenus(groupId: number, menuIds: string[]) {
++  const ids = [...new Set(menuIds.map((id) => id.toLowerCase()))].sort();
++  return transaction(async (connection) => {
++    // Serialize saves for this group, including clearing all bindings.
++    const groups = await rows<RowDataPacket[]>(
++      'SELECT id FROM user_groups WHERE id = ? FOR UPDATE', [groupId], connection
++    );
++    if (!groups[0]) throw notFound('用户组不存在');
++
++    if (ids.length) {
++      const menus = await rows<(RowDataPacket & { id: string })[]>(
++        `SELECT id FROM menus WHERE id IN (${ids.map(() => '?').join(', ')}) ORDER BY id FOR SHARE`,
++        ids, connection
++      );
++      const foundIds = new Set(menus.map(({ id }) => id));
++      const missingIds = ids.filter((id) => !foundIds.has(id));
++      if (missingIds.length) throw notFound(`菜单不存在：${missingIds.join(', ')}`);
++    }
++
++    await execute('DELETE FROM user_group_menus WHERE group_id = ?', [groupId], connection);
++    if (ids.length) {
++      await execute(
++        `INSERT INTO user_group_menus (group_id, menu_id) VALUES ${ids.map(() => '(?, ?)').join(', ')}`,
++        ids.flatMap((id) => [groupId, id]), connection
++      );
++    }
++    return { groupId, menuIds: ids, updated: true };
++  });
++}
+diff --git a/src/apps/system-app/schemas.ts b/src/apps/system-app/schemas.ts
+--- a/src/apps/system-app/schemas.ts
++++ b/src/apps/system-app/schemas.ts
+@@ -105,6 +105,7 @@
+ export const idListSchema = z.object({ ids: z.array(z.number().int().positive()).max(500) });
+ const uuidSchema = z.uuid().transform((value) => value.toLowerCase());
+ export const menuIdListSchema = z.object({ ids: z.array(uuidSchema).max(500) });
++export const saveUserGroupMenusSchema = z.object({ menuIds: z.array(uuidSchema).max(500) }).strict();
+ export const userStatusSchema = z.object({ status: z.enum(['active', 'disabled']) });
+ 
+ export const menuSchema = z.object({
+diff --git a/src/apps/system-app/routes.ts b/src/apps/system-app/routes.ts
+--- a/src/apps/system-app/routes.ts
++++ b/src/apps/system-app/routes.ts
+@@ -7,12 +7,13 @@
+ import * as dictionaries from './dictionary-service.js';
+ import * as menus from './menu-service.js';
+ import * as userGroups from './user-group-service.js';
++import * as userGroupMenus from './user-group-menu-service.js';
+ import {
+   createDictionaryItemSchema, dictionarySchema, idListSchema, menuIdListSchema, menuSchema,
+   roleSchema, queryDictionaryItemSchema, queryDictionarySchema, queryMenuSchema,
+   updateDictionaryItemSchema, updateDictionarySchema, updateMenuSchema, updateRoleSchema,
+   userStatusSchema, userGroupSchema, updateUserGroupSchema, queryUserGroupUsersSchema,
+-  addUserGroupUsersSchema, queryUsersSchema
++  addUserGroupUsersSchema, queryUsersSchema, saveUserGroupMenusSchema
+ } from './schemas.js';
+ 
+ export function createSystemApp() {
+@@ -95,6 +96,12 @@
+   router.get('/user-groups', requirePermission('system:group:read'), asyncHandler(async (_request, response) => {
+     ok(response, await userGroups.listUserGroups());
+   }));
++  router.get('/user-groups/:id/menus/tree', requirePermission('system:group:read'), asyncHandler(async (request, response) => {
++    ok(response, await userGroupMenus.getUserGroupMenuTree(parsePositiveInt(request.params.id!)));
++  }));
++  router.put('/user-groups/:id/menus', requirePermission('system:group:write'), validateBody(saveUserGroupMenusSchema), asyncHandler(async (request, response) => {
++    ok(response, await userGroupMenus.saveUserGroupMenus(parsePositiveInt(request.params.id!), request.body.menuIds));
++  }));
+   router.post('/user-groups/users/query', requirePermission('system:group:read'), validateBody(queryUserGroupUsersSchema), asyncHandler(async (request, response) => {
+     ok(response, await userGroups.queryUserGroupUsers(request.body));
+   }));
+diff --git a/database/migrations/007_user_group_menus.sql b/database/migrations/007_user_group_menus.sql
+new file mode 100644
+--- /dev/null
++++ b/database/migrations/007_user_group_menus.sql
+@@ -0,0 +1,9 @@
++CREATE TABLE IF NOT EXISTS user_group_menus (
++  group_id BIGINT UNSIGNED NOT NULL,
++  menu_id CHAR(36) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
++  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
++  PRIMARY KEY (group_id, menu_id),
++  KEY idx_user_group_menus_menu (menu_id),
++  CONSTRAINT fk_user_group_menus_group FOREIGN KEY (group_id) REFERENCES user_groups(id) ON DELETE CASCADE,
++  CONSTRAINT fk_user_group_menus_menu FOREIGN KEY (menu_id) REFERENCES menus(id) ON DELETE CASCADE
++) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+diff --git a/scripts/db-init.ts b/scripts/db-init.ts
+--- a/scripts/db-init.ts
++++ b/scripts/db-init.ts
+@@ -80,6 +80,7 @@
+   await applySql('database/migrations/004_menu_type.sql');
+   await applySql('database/migrations/005_user_groups.sql');
+   await applySql('database/migrations/006_user_group_users.sql');
++  await applySql('database/migrations/007_user_group_menus.sql');
+ 
+   await applySql('database/seeds/001_base.sql');
+ 
+diff --git a/test/user-group-menus.test.ts b/test/user-group-menus.test.ts
+new file mode 100644
+--- /dev/null
++++ b/test/user-group-menus.test.ts
+@@ -0,0 +1,167 @@
++import assert from 'node:assert/strict';
++import { test, type TestContext } from 'node:test';
++import jwt from 'jsonwebtoken';
++import request from 'supertest';
++import { createApp } from '../src/app.js';
++import { env } from '../src/config/env.js';
++import { pool } from '../src/db/pool.js';
++import { saveUserGroupMenusSchema } from '../src/apps/system-app/schemas.js';
++import { getUserGroupMenuTree, saveUserGroupMenus } from '../src/apps/system-app/user-group-menu-service.js';
++
++const parent = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1';
++const child = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa2';
++const sibling = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa3';
++const other = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa4';
++
++function mockSave(t: TestContext, options: { missingGroup?: boolean; missingMenu?: boolean; failInsert?: boolean } = {}) {
++  const events: string[] = [];
++  const state = new Map<number, string[]>([[7, [other]], [8, [sibling]]]);
++  let pending: string[] = [];
++  const connection = {
++    beginTransaction: async () => { events.push('begin'); pending = [...state.get(7)!]; },
++    commit: async () => { events.push('commit'); state.set(7, pending); },
++    rollback: async () => { events.push('rollback'); },
++    release: () => { events.push('release'); },
++    execute: async (sql: string, values: Array<string | number>) => {
++      if (sql.includes('FROM user_groups')) {
++        assert.deepEqual(values, [7]);
++        assert.match(sql, /FOR UPDATE/);
++        return [options.missingGroup ? [] : [{ id: 7 }], []];
++      }
++      if (sql.includes('FROM menus')) {
++        assert.match(sql, /FOR SHARE/);
++        return [values.filter(id => !options.missingMenu || id !== child).map(id => ({ id })), []];
++      }
++      if (sql.startsWith('DELETE')) {
++        assert.equal(sql, 'DELETE FROM user_group_menus WHERE group_id = ?');
++        assert.deepEqual(values, [7]);
++        events.push('delete');
++        pending = [];
++        return [{ affectedRows: 1 }, []];
++      }
++      assert.match(sql, /^INSERT INTO user_group_menus/);
++      events.push('insert');
++      if (options.failInsert) throw new Error('write failed');
++      for (let i = 0; i < values.length; i += 2) {
++        assert.equal(values[i], 7);
++        pending.push(values[i + 1] as string);
++      }
++      return [{ affectedRows: pending.length }, []];
++    }
++  };
++  t.mock.method(pool, 'getConnection', async () => connection);
++  return { state, events };
++}
++
++test('save schema requires explicit UUID menuIds, supports clearing, normalizes case and limits input', () => {
++  assert.deepEqual(saveUserGroupMenusSchema.parse({ menuIds: [] }), { menuIds: [] });
++  assert.deepEqual(saveUserGroupMenusSchema.parse({ menuIds: [parent.toUpperCase(), child] }), { menuIds: [parent, child] });
++  for (const body of [{}, { ids: [parent] }, { menuIds: null }, { menuIds: [1] },
++    { menuIds: ['invalid'] }, { menuIds: Array(501).fill(parent) }, { menuIds: [], typo: true }]) {
++    assert.equal(saveUserGroupMenusSchema.safeParse(body).success, false);
++  }
++});
++
++test('query returns the full hierarchy with exact bindings, including hidden menus and over 20 roots', async (t) => {
++  const menus = [
++    { id: parent, parentId: null, name: '父节点', visible: 1 },
++    { id: child, parentId: parent, name: '已选子节点', visible: 1 },
++    { id: sibling, parentId: parent, name: '未选子节点', visible: 0 },
++    ...Array.from({ length: 25 }, (_, i) => ({ id: `root-${i}`, parentId: null, name: `根${i}`, visible: 1 }))
++  ];
++  t.mock.method(pool, 'execute', async (sql: string, values: unknown[]) => {
++    if (sql.includes('FROM user_groups')) return [[{ id: 7 }], []];
++    if (sql.includes('FROM user_group_menus')) {
++      assert.deepEqual(values, [7]);
++      return [[{ menuId: parent }, { menuId: child }], []];
++    }
++    assert.match(sql, /FROM menus m/);
++    assert.doesNotMatch(sql, /LIMIT|WHERE m.visible/);
++    return [menus, []];
++  });
++  const result = await getUserGroupMenuTree(7);
++  assert.equal(result.groupId, 7);
++  assert.equal(result.rows.length, 26);
++  assert.deepEqual(result.checkedKeys, [parent, child]);
++  assert.deepEqual(result.rows[0]!.children.map(m => [m.id, m.visible]), [[child, true], [sibling, false]]);
++});
++
++test('query handles missing groups and an empty menu tree', async (t) => {
++  let exists = false;
++  t.mock.method(pool, 'execute', async (sql: string) => {
++    if (sql.includes('FROM user_groups')) return [exists ? [{ id: 7 }] : [], []];
++    assert.equal(exists, true);
++    return [[], []];
++  });
++  await assert.rejects(getUserGroupMenuTree(7), { status: 404 });
++  exists = true;
++  assert.deepEqual(await getUserGroupMenuTree(7), { groupId: 7, rows: [], checkedKeys: [] });
++});
++
++test('save replaces only the target group, deduplicates and is repeatable without selecting extra nodes', async (t) => {
++  const { state } = mockSave(t);
++  t.mock.method(pool, 'execute', () => { throw new Error('Must use transaction'); });
++  const expected = { groupId: 7, menuIds: [parent, child], updated: true };
++  assert.deepEqual(await saveUserGroupMenus(7, [child, parent, child]), expected);
++  assert.deepEqual(await saveUserGroupMenus(7, [parent, child]), expected);
++  assert.deepEqual(state.get(7), [parent, child]);
++  assert.deepEqual(state.get(8), [sibling]);
++  assert.deepEqual(await saveUserGroupMenus(7, []), { groupId: 7, menuIds: [], updated: true });
++  assert.deepEqual(state.get(7), []);
++});
++
++test('missing groups or menus and failed inserts preserve previous bindings and roll back', async (t) => {
++  for (const options of [{ missingGroup: true }, { missingMenu: true }, { failInsert: true }]) {
++    await t.test(JSON.stringify(options), async (childTest) => {
++      const { state, events } = mockSave(childTest, options);
++      await assert.rejects(saveUserGroupMenus(7, [parent, child]),
++        'failInsert' in options ? { message: 'write failed' } : { status: 404 });
++      assert.deepEqual(state.get(7), [other]);
++      assert.deepEqual(events.slice(-2), ['rollback', 'release']);
++      if (!('failInsert' in options)) assert.equal(events.includes('delete'), false);
++    });
++  }
++});
++
++test('HTTP routes enforce login, read/write permissions, validation and response shapes', async (t) => {
++  let permissions: string[] = [];
++  let exists = true;
++  t.mock.method(pool, 'execute', async (sql: string) => {
++    if (sql.includes('FROM users WHERE')) return [[{ id: 1, username: 'tester', status: 'active' }], []];
++    if (sql.includes('FROM roles r JOIN')) return [[{ code: 'tester' }], []];
++    if (sql.includes('FROM permissions p')) return [permissions.map(code => ({ code })), []];
++    if (sql.includes('FROM user_groups')) return [exists ? [{ id: 7 }] : [], []];
++    if (sql.includes('FROM user_group_menus')) return [[{ menuId: child }], []];
++    if (sql.includes('FROM menus m')) return [[{ id: child, parentId: null, name: '菜单', visible: 1 }], []];
++    throw new Error(`Unexpected SQL: ${sql}`);
++  });
++  const { state } = mockSave(t);
++  const app = createApp();
++  const auth = { Authorization: `Bearer ${jwt.sign({ sub: '1', type: 'access' }, env.JWT_ACCESS_SECRET, { expiresIn: '5m' })}` };
++  const treePath = '/api/system/user-groups/7/menus/tree';
++  const savePath = '/api/system/user-groups/7/menus';
++  assert.equal((await request(app).get(treePath)).status, 401);
++  assert.equal((await request(app).put(savePath).send({ menuIds: [] })).status, 401);
++  assert.equal((await request(app).get(treePath).set(auth)).status, 403);
++  assert.equal((await request(app).put(savePath).set(auth).send({ menuIds: [] })).status, 403);
++  permissions = ['system:group:read'];
++  const tree = await request(app).get(treePath).set(auth);
++  assert.equal(tree.status, 200);
++  assert.equal(tree.body.success, true);
++  assert.equal(tree.body.data.groupId, 7);
++  assert.deepEqual(tree.body.data.checkedKeys, [child]);
++  assert.equal(tree.body.data.rows[0].id, child);
++  assert.equal((await request(app).put(savePath).set(auth).send({ menuIds: [] })).status, 403);
++  permissions.push('system:group:write');
++  for (const body of [{}, { menuIds: ['bad'] }, { menuIds: [1] }]) {
++    assert.equal((await request(app).put(savePath).set(auth).send(body)).status, 400);
++  }
++  assert.equal((await request(app).get('/api/system/user-groups/bad/menus/tree').set(auth)).status, 400);
++  assert.equal((await request(app).put('/api/system/user-groups/0/menus').set(auth).send({ menuIds: [] })).status, 400);
++  const save = await request(app).put(savePath).set(auth).send({ menuIds: [child, child] });
++  assert.equal(save.status, 200);
++  assert.deepEqual(save.body, { success: true, data: { groupId: 7, menuIds: [child], updated: true } });
++  assert.deepEqual(state.get(7), [child]);
++  exists = false;
++  assert.equal((await request(app).get(treePath).set(auth)).status, 404);
++});
+diff --git a/docs/user-group-api.md b/docs/user-group-api.md
+--- a/docs/user-group-api.md
++++ b/docs/user-group-api.md
+@@ -14,6 +14,8 @@
+ | POST | `/api/system/user-groups/users/query` | 分页查询指定用户组绑定的用户，ID 通过请求体 `params.id` 传递 |
+ | POST | `/api/system/user-groups/:id/users` | 批量添加用户到该组 |
+ | DELETE | `/api/system/user-groups/:id/users/:userId` | 解除单个用户绑定 |
++| GET | `/api/system/user-groups/:id/menus/tree` | 完整菜单树及已绑定菜单 ID |
++| PUT | `/api/system/user-groups/:id/menus` | 全量保存菜单绑定，支持清空 |
+ | POST | `/api/system/users/query` | 分页查询所有用户，需要 `system:role:read` 权限 |
+ 
+ 其他成功请求返回 HTTP 200。`id` 为服务端生成的正整数。
+@@ -191,3 +193,67 @@
+ 该命令沿用项目现有初始化流程，也会更新基础种子及管理员配置。
+ `user_group_users` 使用 `(group_id, user_id)` 联合主键，避免重复绑定；删除用户组或用户时
+ 级联清理对应关联。初始化不会自动绑定用户，可通过批量添加接口维护成员。
++
++## 查询用户组菜单权限树
++
++`GET /api/system/user-groups/:id/menus/tree`，需要 `system:group:read` 权限。
++`id` 为用户组正整数 ID，无需请求体。
++
++```json
++{
++  "success": true,
++  "data": {
++    "groupId": 1,
++    "rows": [],
++    "checkedKeys": []
++  }
++}
++```
++
++以上仅展示响应结构；实际 `rows` 为完整菜单树（包含未绑定、隐藏菜单，不分页），
++节点字段与菜单查询一致，使用 `id`、`name`、`children` 展示树。
++`checkedKeys` 为当前用户组实际绑定的菜单 UUID 数组，未绑定时为空数组。
++无菜单时 `rows` 和 `checkedKeys` 均为空数组；用户组不存在返回 `404 NOT_FOUND`。
++
++## 保存用户组菜单权限
++
++`PUT /api/system/user-groups/:id/menus`，需要 `system:group:write` 权限。
++请求体必须明确提供 `menuIds`，仅接受该字段，最多 500 项；每项为菜单 UUID：
++
++```json
++{ "menuIds": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1"] }
++```
++
++成功响应：
++
++```json
++{
++  "success": true,
++  "data": {
++    "groupId": 1,
++    "menuIds": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaa1"],
++    "updated": true
++  }
++}
++```
++
++全量替换指定用户组的绑定，`{ "menuIds": [] }` 清空全部绑定。
++UUID 统一为小写、去重并按 ID 排序，重复保存结果一致。
++用户组或任一菜单不存在返回 `404 NOT_FOUND`；缺少字段、非法 UUID、超出数量上限
++返回 `400 BAD_REQUEST`。保存使用事务并锁定用户组，发生错误时保留原绑定，
++同组并发保存串行执行，其他用户组不受影响。
++
++父子节点按提交 ID 独立绑定，不会自动补全祖先或授予所有子节点。
++前端如使用 Element Plus Tree，可使用 `node-key="id"` 和 `check-strictly`，
++通过 `checkedKeys` 回显、`getCheckedKeys()` 提交，避免勾选父节点导致未授权子节点被自动选中。
++如果产品需要联动勾选，应由前端明确计算并提交最终菜单 ID 集合。
++
++这两个接口维护用户组与菜单的绑定配置；现有登录权限仍由角色权限计算，
++`/api/system/menus/mine` 仍按角色菜单过滤，本次未调整运行时鉴权与菜单聚合逻辑。
++
++### 菜单绑定表迁移
++
++新增 `database/migrations/007_user_group_menus.sql`，创建 `user_group_menus`。
++联合主键避免重复绑定，删除组或菜单时级联清理绑定。
++已有数据库可单独执行该迁移；`npm run db:init` 也已纳入迁移，但同时会执行原有的
++种子数据及管理员初始化流程。迁移需在启用新接口前应用。
+diff --git a/docs/openapi.yaml b/docs/openapi.yaml
+--- a/docs/openapi.yaml
++++ b/docs/openapi.yaml
+@@ -14,6 +14,102 @@
+   - name: User Groups
+     description: 用户组管理（不分页）
+ paths:
++  /api/system/user-groups/{id}/menus/tree:
++    parameters:
++      - in: path
++        name: id
++        required: true
++        schema: { type: integer, minimum: 1 }
++    get:
++      tags: [User Groups]
++      summary: 查询用户组菜单权限树及已绑定 ID
++      description: 需要 system:group:read 权限；返回完整树，包含未绑定及隐藏菜单，不分页。
++      operationId: getUserGroupMenuTree
++      security:
++        - bearerAuth: []
++      responses:
++        '200':
++          description: 查询成功
++          content:
++            application/json:
++              schema:
++                type: object
++                required: [success, data]
++                properties:
++                  success: { const: true }
++                  data:
++                    type: object
++                    required: [groupId, rows, checkedKeys]
++                    properties:
++                      groupId: { type: integer, minimum: 1 }
++                      rows:
++                        type: array
++                        items:
++                          $ref: '#/components/schemas/Menu'
++                      checkedKeys:
++                        type: array
++                        items: { type: string, format: uuid }
++        '400':
++          $ref: '#/components/responses/BadRequest'
++        '401':
++          $ref: '#/components/responses/Unauthorized'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
++  /api/system/user-groups/{id}/menus:
++    parameters:
++      - in: path
++        name: id
++        required: true
++        schema: { type: integer, minimum: 1 }
++    put:
++      tags: [User Groups]
++      summary: 全量保存用户组菜单绑定
++      description: 需要 system:group:write 权限。空数组清空；去重并规范为小写；父子节点独立绑定。任一菜单不存在则全部回滚。
++      operationId: saveUserGroupMenus
++      security:
++        - bearerAuth: []
++      requestBody:
++        required: true
++        content:
++          application/json:
++            schema:
++              type: object
++              additionalProperties: false
++              required: [menuIds]
++              properties:
++                menuIds:
++                  type: array
++                  maxItems: 500
++                  items: { type: string, format: uuid }
++      responses:
++        '200':
++          description: 保存成功（仅维护绑定配置，未调整运行时鉴权）
++          content:
++            application/json:
++              schema:
++                type: object
++                required: [success, data]
++                properties:
++                  success: { const: true }
++                  data:
++                    type: object
++                    required: [groupId, menuIds, updated]
++                    properties:
++                      groupId: { type: integer, minimum: 1 }
++                      menuIds:
++                        type: array
++                        items: { type: string, format: uuid }
++                      updated: { const: true }
++        '400':
++          $ref: '#/components/responses/BadRequest'
++        '401':
++          $ref: '#/components/responses/Unauthorized'
++        '403':
++          $ref: '#/components/responses/Forbidden'
++        '404':
++          $ref: '#/components/responses/NotFound'
+   /api/system/users/query:
+     post:
+       tags: [User Groups]

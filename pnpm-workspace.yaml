@@ -1,0 +1,13 @@
+packages:
+  # 所有业务应用：微前端主应用、子应用
+  - "apps/*"
+  # 所有公共包：组件库、hooks、工具、ts类型
+  - "packages/*"
+allowBuilds:
+  '@parcel/watcher': true
+  '@vue-office/docx': set this to true or false
+  '@vue-office/excel': set this to true or false
+  '@vue-office/pdf': set this to true or false
+  '@vue-office/pptx': set this to true or false
+  es5-ext: false
+  vue-demi: set this to true or false

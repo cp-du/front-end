@@ -1,0 +1,77 @@
+html,
+body,
+#app {
+    width: 100%;
+    height: 100%;
+}
+
+html {
+
+    background: var(--el-bg-color);
+}
+
+body {
+    min-width: 320px;
+    color: var(--app-text-primary) !important;
+    background: var(--el-bg-color) !important;
+    font-family: var(--app-font-family);
+    font-size: var(--app-font-size-md);
+    line-height: var(--app-line-height-base);
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+button,
+a {
+    -webkit-tap-highlight-color: transparent;
+}
+
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+}
+
+:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+}
+
+::selection {
+    color: #ffffff;
+    background: var(--color-primary);
+}
+
+code,
+kbd,
+samp,
+pre {
+    font-family: var(--app-font-family-mono);
+}
+
+hr {
+    height: 1px;
+    margin: var(--app-space-4) 0;
+    border: 0;
+    background: var(--app-divider-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    html:focus-within {
+        scroll-behavior: auto;
+    }
+
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+    }
+}

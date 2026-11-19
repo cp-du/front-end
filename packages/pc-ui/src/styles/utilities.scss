@@ -1,0 +1,138 @@
+// Prefer the du- prefix in shared packages. Unprefixed selectors are kept for
+// compatibility with existing application templates.
+.du-flex,
+.flex {
+    display: flex;
+}
+
+.du-inline-flex {
+    display: inline-flex;
+}
+
+.du-flex-column {
+    display: flex;
+    flex-direction: column;
+}
+
+.du-flex-center,
+.flex-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.du-items-center {
+    align-items: center;
+}
+
+.du-justify-between {
+    justify-content: space-between;
+}
+
+.du-flex-1,
+.flex-1 {
+    flex: 1 1 0%;
+    min-width: 0;
+}
+
+.du-min-w-0 {
+    min-width: 0;
+}
+
+.du-min-h-0 {
+    min-height: 0;
+}
+
+.du-full-width {
+    width: 100%;
+}
+
+.du-full-height {
+    height: 100%;
+}
+
+.du-full-size,
+.full-size {
+    width: 100%;
+    height: 100%;
+}
+
+.du-gap-xs {
+    gap: var(--app-space-1);
+}
+
+.du-gap-sm {
+    gap: var(--app-space-2);
+}
+
+.du-gap-md {
+    gap: var(--app-space-4);
+}
+
+.du-gap-lg {
+    gap: var(--app-space-6);
+}
+
+.du-overflow-hidden {
+    overflow: hidden;
+}
+
+.du-overflow-auto,
+.overflow-auto {
+    overflow: auto;
+}
+
+.du-overflow-y-auto,
+.overflow-y-auto {
+    overflow-y: auto;
+}
+
+.du-text-ellipsis,
+.text-ellipsis {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.du-text-clamp-2 {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.du-scrollbar {
+    scrollbar-color: var(--app-text-placeholder) transparent;
+    scrollbar-width: thin;
+}
+
+.du-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+.du-scrollbar::-webkit-scrollbar-thumb {
+    border-radius: var(--app-radius-round);
+    background: var(--app-text-placeholder);
+}
+
+.du-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.du-sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.du-clickable {
+    cursor: pointer;
+    -webkit-user-select: none;
+    user-select: none;
+}

@@ -1,0 +1,27 @@
+{
+    "extends": "../../tsconfig.json",
+    "compilerOptions": {
+        "composite": true,
+        "declaration": true,
+        "noEmit": false,
+        "paths": {
+            "@/*": [
+                "./src/*"
+            ],
+            "@wangeditor/editor-for-vue": [
+                "./src/typings/wangeditor-editor-for-vue.d.ts"
+            ],
+            "~/*": [
+                "./*"
+            ],
+            "~": [
+                "./"
+            ]
+        },
+        "outDir": "./dist/types"
+    },
+    "include": [
+        "src/**/*",
+        "src/**/*.json"
+    ]
+}

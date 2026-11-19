@@ -1,0 +1,99 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+}
+
+:where(h1, h2, h3, h4, h5, h6, p, blockquote, figure, dl, dd) {
+  margin: 0;
+}
+
+:where(button, input, textarea, select) {
+  margin: 0;
+  color: inherit;
+  font: inherit;
+}
+
+:where(button, [type="button"], [type="reset"], [type="submit"]) {
+  appearance: button;
+}
+
+:where(img, picture, video, canvas, svg) {
+  display: block;
+  max-width: 100%;
+}
+
+:where(table) {
+  border-collapse: collapse;
+  border-spacing: 0;
+}
+
+:where(textarea) {
+  resize: vertical;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+/* 所有 overflow-y:auto 的容器自动美化滚动条 */
+div {
+  scrollbar-width: thin;
+  scrollbar-color: #c1c1c1 transparent;
+}
+
+
+div::-webkit-scrollbar {
+  width: 6px;
+}
+
+div::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+  border-radius: 3px;
+}
+
+@font-face {
+  font-family: "iconfont-base";
+  src: url("./iconfont/base/iconfont.ttf?t=1764140706344") format("truetype");
+}
+
+@font-face {
+  font-family: "iconfont-colorfull";
+  src: url("./iconfont/colorfull/iconfont.ttf?t=1764140706344") format("truetype");
+}
+
+.iconfont-base {
+  font-family: "iconfont-base" !important;
+  font-size: 14px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.iconfont-colorfull {
+  font-family: "iconfont-colorfull" !important;
+  font-size: 14px;
+  font-style: normal;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  fill: currentColor;
+  overflow: hidden;
+}
+
+
+// dialog

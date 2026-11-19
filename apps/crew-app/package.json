@@ -1,0 +1,41 @@
+{
+  "name": "crew-app",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@du/pc-ui": "workspace:*",
+    "@du/utils": "workspace:*",
+    "@du/typings": "workspace:*",
+    "@element-plus/icons-vue": "^2.3.2",
+    "@vueuse/core": "^14.4.0",
+    "@wangeditor/editor": "^5.1.23",
+    "@wangeditor/editor-for-vue": "^5.1.12",
+    "axios": "^1.20.0",
+    "crypto-js": "^4.2.0",
+    "element-plus": "^2.13.7",
+    "es-toolkit": "^1.52.0",
+    "vue": "^3.5.39",
+    "vue-draggable-plus": "^0.6.0",
+    "vue-i18n": "^11.3.0",
+    "vue-router": "^5.0.4",
+    "vxe-pc-ui": "^4.18.19",
+    "vxe-table": "~4.22.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.2",
+    "@vitejs/plugin-vue": "^6.0.7",
+    "@vue/tsconfig": "^0.9.1",
+    "prettier": "^3.8.1",
+    "sass": "^1.102.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1",
+    "vite-plugin-qiankun": "^1.0.15",
+    "vue-tsc": "^3.3.5"
+  }
+}
